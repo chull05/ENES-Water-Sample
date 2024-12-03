@@ -133,7 +133,7 @@ void rotateOTV() {
         int speed = maxSpeed;
 
         // Adjust the speed based on the angle's proximity to zero
-        if (fabs(currentTheta) < threshold + .2) {
+        if (fabs(currentTheta) < threshold + .6) {
             //map(int x, int in_min, int in_max, int out_min, int out_max)
             speed = map(fabs(currentTheta), threshold, 0.5, 50, maxSpeed); 
             // Slow down as it approaches threshold
@@ -201,7 +201,7 @@ void rotateToZero() {
 
 void moveTillX(float xCord){
     //Moves Tank till x values reach target within threshold of .3
-    while(fabs(Enes100.getX() - xCord) > 0.3){
+    while(fabs(Enes100.getX() - xCord) > 0.5){
         Enes100.println("Reached");
         setDirection(0, 200);
         delay(100);
@@ -249,7 +249,7 @@ void moveTillY(float yCord){
     //Moves Tank till y values reach target within threshold of .3
     Enes100.println("MoveTill");
     float currentY = Enes100.getY();
-    while (fabs(currentY - yCord) > 0.1) {
+    while (fabs(currentY - yCord) > 0.3) {
         currentY = Enes100.getY();
 
         // Calculate the difference
@@ -366,7 +366,7 @@ void turn90Degrees(int direction){
             setDirection (1, speed);
         }
 
-        delay(10);
+        delay(1000);
        
         
     }
@@ -421,6 +421,8 @@ void setDirection(int motors, int power) {
 
         digitalWrite(IN1_A, HIGH);
         digitalWrite(IN2_A, LOW);
+         
+        delay (100);
 
         digitalWrite(IN1_B, HIGH);
         digitalWrite(IN2_B, LOW);
@@ -429,11 +431,15 @@ void setDirection(int motors, int power) {
         analogWrite(EN_A, power);
         analogWrite(EN_B, power);
 
+        digitalWrite(IN1_B, HIGH);
+        digitalWrite(IN2_B, LOW);
+        
+        delay (100);
+        
         digitalWrite(IN1_A, HIGH);
         digitalWrite(IN2_A, LOW);
 
-        digitalWrite(IN1_B, HIGH);
-        digitalWrite(IN2_B, LOW);
+        
     }
 
 }
