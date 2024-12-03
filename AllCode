@@ -24,6 +24,16 @@ const int echoPinB = 6;
 long duration;
 int distance;
 
+// Pin Definitions
+const int waterSensorPowerPin = 29;   // Digital pin to power the water sensor
+const int waterSensorPin = A5;       // Analog pin connected to the water sensor
+const int pumpControlPin = 28;        // Digital pin controlling the pump
+const int waterThreshold = 500;      // Water sensor threshold value (adjust as needed)
+const unsigned long pumpRunTime = 10000; // Pump run time in milliseconds (10 seconds)
+
+// Variables
+bool pumpRunning = false;             // State of the pump
+unsigned long pumpStartTime = 0;      // Time when the pump was turned on
 
 void setup() {
     // put your setup code here, to run once:
@@ -40,6 +50,12 @@ void setup() {
 
     pinMode(trigPinB, OUTPUT); // Sets the trigPin as an Output
     pinMode(echoPinB, INPUT); // Sets the echoPin as an Input
+
+    pinMode(waterSensorPowerPin, OUTPUT); // Set sensor power pin as output
+    pinMode(pumpControlPin, OUTPUT);     // Set pump control pin as output
+    digitalWrite(waterSensorPowerPin, LOW); // Start with sensor off
+    digitalWrite(pumpControlPin, LOW);   // Ensure the pump starts off
+    Serial.begin(9600);                  // Initialize serial for debugging
 
     Enes100.begin("Project Kowalski", WATER, 249, 53, 52);
     
@@ -322,7 +338,38 @@ float normalizeTheta(float theta) {
     }
     return theta;
 }
+void pumpWater (){
+  // Power the sensor
+  digitalWrite(waterSensorPowerPin, HIGH);  // Turn the sensor ON
+  delay(10);                                // Wait 10 milliseconds for stabilization
 
+  // Read water level
+  int waterLevel = analogRead(waterSensorPin);
+
+  // Debugging output
+  Serial.print("Water level: ");
+  Serial.println(waterLevel);
+
+  // Check if water is detected
+  if (!pumpRunning && waterLevel > waterThreshold) {
+    Serial.println("Water detected! Turning pump on.");
+    digitalWrite(pumpControlPin, HIGH);     // Turn on the pump
+    pumpStartTime = millis();               // Record the time the pump started
+    pumpRunning = true;                     // Set pump state to running
+  }
+
+  // Check if pump should be turned off
+  if (pumpRunning && (millis() - pumpStartTime >= pumpRunTime)) {
+    Serial.println("Turning pump off.");
+    digitalWrite(pumpControlPin, LOW);      // Turn off the pump
+    pumpRunning = false;                    // Set pump state to off
+  }
+
+  // Turn the sensor off to save power
+  digitalWrite(waterSensorPowerPin, LOW);
+
+  delay(100); // Short delay for stability
+}
 void turn90Degrees(int direction){
     //should pass in 1 (left) or 2 (right)
     float target;
@@ -435,7 +482,7 @@ void setDirection(int motors, int power) {
         digitalWrite(IN2_B, LOW);
         
         delay (100);
-        
+
         digitalWrite(IN1_A, HIGH);
         digitalWrite(IN2_A, LOW);
 
