@@ -1,5 +1,5 @@
 // Pin Definitions
-const int waterSensorPowerPin = 7;   // Digital pin to power the water sensor
+const int waterSensorPowerPin = 29;   // Digital pin to power the water sensor
 const int waterSensorPin = A5;       // Analog pin connected to the water sensor
 const int pumpControlPin = 28;        // Digital pin controlling the pump
 const int waterThreshold = 500;      // Water sensor threshold value (adjust as needed)
