@@ -1,6 +1,8 @@
 #include <math.h>
 #include "Arduino.h"
 #include "Enes100.h"
+#include "Tank.h"
+
 
 //Assigning Pins Left Motor (A) 
 const int EN_A = 10;//speed
@@ -17,8 +19,8 @@ const int IN2_B = 46; //direction
 const int trigPinA = 7;
 const int echoPinA = 8;
 
-const int trigPinB = 5;
-const int echoPinB = 6;
+//const int trigPinB = 5;
+//const int echoPinB = 6;
 
 // defines variables
 long duration;
@@ -35,24 +37,26 @@ void setup() {
     pinMode(IN1_B, OUTPUT);
     pinMode(IN2_B, OUTPUT);
 
-    pinMode(trigPinA, OUTPUT); // Sets the trigPin as an Output
-    pinMode(echoPinA, INPUT); // Sets the echoPin as an Input
+    // pinMode(trigPinA, OUTPUT); // Sets the trigPin as an Output
+    // pinMode(echoPinA, INPUT); // Sets the echoPin as an Input
 
-    pinMode(trigPinB, OUTPUT); // Sets the trigPin as an Output
-    pinMode(echoPinB, INPUT); // Sets the echoPin as an Input
-
-    Enes100.begin("Project Kowalski", WATER, 249, 51, 50);
+    // pinMode(trigPinB, OUTPUT); // Sets the trigPin as an Output
+    // pinMode(echoPinB, INPUT); // Sets the echoPin as an Input
+    Tank.begin();
+    Enes100.begin("Project Kowalski", WATER, 249, 52, 50);
     
     Enes100.println("Starting directions towards landing zone");
     //setDirection(1, 75);
     //navigateMission();
     //moveTillX(3.9);
-    turn90Degrees(2);
-    setDirection(0, 70);
-    //moveTillY(.8);
-    //Enes100.println(measureDistance(trigPinA, echoPinA));
-    delay(1300);
+    //rotateOTV();
+    //turn90Degrees(2);
+    //setDirection(0, 70);
+    moveTillY(0);
+    // //Enes100.println(measureDistance(trigPinA, echoPinA));
+    //delay(1300);
     stopMotors();
+    
     
 }
 
@@ -85,32 +89,32 @@ void updateCoords()
 
 
 float measureDistance(int trigPin, int echoPin){
-  digitalWrite(trigPin, LOW);
-  delay(2);
-  digitalWrite(trigPin, HIGH);
-  delay(10);
-  digitalWrite(trigPin, LOW);
+  // digitalWrite(trigPin, LOW);
+  // delay(2);
+  // digitalWrite(trigPin, HIGH);
+  // delay(10);
+  // digitalWrite(trigPin, LOW);
 
   // Read the echo pin and calculate distance based on pulse duration
   long duration = pulseIn(echoPin, HIGH);
-  float distance = duration * 0.034 / 2;  // Convert time to distance (in meters)
+  float distance =Tank.readDistanceSensor(1) * 0.034 / 2;  // Convert time to distance (in meters)
   return distance;
 }
 
 void distSense()
 {
   // Measure distances from both sensors
-    float distanceSensor1 = measureDistance(trigPinA, echoPinA);
-    float distanceSensor2 = measureDistance(trigPinB, echoPinB);
+    float distanceSensor1 = Tank.readDistanceSensor(1);
+    //float distanceSensor2 = measureDistance(trigPinB, echoPinB);
 
     // Print distances to Enes100 for monitoring
     Enes100.print("Sensor 1 Distance: ");
     Enes100.println(distanceSensor1);
-    Enes100.print("Sensor 2 Distance: ");
-    Enes100.println(distanceSensor2);
+    // Enes100.print("Sensor 2 Distance: ");
+    // Enes100.println(distanceSensor2);
 
     // Set the logic based on the sensor readings
-    if (distanceSensor1 < 0.3 || distanceSensor2 < 0.3) {  // Trigger avoidance if either sensor detects an obstacle within 0.3m
+    if (distanceSensor1 < 0.3) {  // Trigger avoidance if either sensor detects an obstacle within 0.3m
         if (Enes100.getY() < 1) {
             turn90Degrees(1);
             moveTillY(1.45);
@@ -131,18 +135,19 @@ void rotateOTV() {
     const int maxSpeed = 150;
     // Threshold for stopping (.2 radians)
     const float threshold = .2; 
-    
+
     // Continue rotating until theta is within the specified range
     while (fabs(Enes100.getTheta()) > threshold) {
         updateCoords ();
         // Get the current theta
+        //stopMotors();
         float currentTheta = Enes100.getTheta();
-    
+        
         // Calculate the speed based on how close we are to zero
         int speed = maxSpeed;
 
         // Adjust the speed based on the angle's proximity to zero
-        if (fabs(currentTheta) < threshold + .2) {
+        if (fabs(currentTheta) < threshold + .6) {
             //map(int x, int in_min, int in_max, int out_min, int out_max)
             speed = map(fabs(currentTheta), threshold, 0.5, 50, maxSpeed); 
             // Slow down as it approaches threshold
@@ -216,11 +221,11 @@ void moveTillX(float xCord){
         delay(100);
         stopMotors();
         
-        float distanceSensor1 = measureDistance(trigPinA, echoPinA);
-        float distanceSensor2 = measureDistance(trigPinB, echoPinB);
+        float distanceSensor1 = Tank.readDistanceSensor(1);
+        //float distanceSensor2 = measureDistance(trigPinB, echoPinB);
         
         int count = 0;
-        if(distanceSensor1 > 0.3 || distanceSensor2 > 0.3){
+        if(distanceSensor1 > 0.3){
             distSense();
             ++count;
             if(count <= 2){
@@ -258,7 +263,7 @@ void moveTillY(float yCord){
     //Moves Tank till y values reach target within threshold of .3
     Enes100.println("MoveTill");
     float currentY = Enes100.getY();
-    while (fabs(currentY - yCord) > 0.1) {
+    while (fabs(currentY - yCord) > 0.3) {
         currentY = Enes100.getY();
 
         // Calculate the difference
@@ -295,15 +300,16 @@ void moveObstacle(int time, int direction){
 
 void stopMotors(){
     //setLeftMotorPWM
-    analogWrite(EN_A, 0);
-    analogWrite(EN_B, 0);
+    Tank.turnOffMotors();
+    // analogWrite(EN_A, 0);
+    // analogWrite(EN_B, 0);
 
-    digitalWrite(IN1_A, LOW);
-    digitalWrite(IN2_A, LOW);
+    // digitalWrite(IN1_A, LOW);
+    // digitalWrite(IN2_A, LOW);
 
-    digitalWrite(IN1_B, LOW);
-    digitalWrite(IN2_B, LOW);
-    //setRightMotorPWM
+    // digitalWrite(IN1_B, LOW);
+    // digitalWrite(IN2_B, LOW);
+    // //setRightMotorPWM
 }
 // Constants
 const float MAX_TURN_SPEED = 255; // Maximum turn speed for motors
@@ -402,7 +408,7 @@ void navigateMission(){
         moveTillX(3.5);
     }
     // Initial positioning with PID control
-    navigateToPosition(3.0, 1.5);
+    //navigateToPosition(3.0, 1.5);
     
     // Fine adjustments using direct movement
     moveTillX(3.0);  // Move to specific X coordinate
@@ -419,35 +425,44 @@ void setDirection(int motors, int power) {
     }
     
     if (motors == 0){//straight
-        analogWrite(EN_A, 75);
-        analogWrite(EN_B, 75);
+        // analogWrite(EN_A, 75);
+        // analogWrite(EN_B, 75);
 
-        digitalWrite(IN1_A, LOW);
-        digitalWrite(IN2_A, HIGH);
+        // digitalWrite(IN1_A, LOW);
+        // digitalWrite(IN2_A, HIGH);
 
-        digitalWrite(IN1_B, LOW);
-        digitalWrite(IN2_B, HIGH);
+        // digitalWrite(IN1_B, LOW);
+        // digitalWrite(IN2_B, HIGH);
+        Tank.setLeftMotorPWM(200);
+        Tank.setRightMotorPWM(200);
     }else if (motors == 1){//turn left
-        analogWrite(EN_A, power);
-        analogWrite(EN_B, power);
+        // analogWrite(EN_A, power);
+        // analogWrite(EN_B, power);
 
-        digitalWrite(IN1_A, HIGH);
-        digitalWrite(IN2_A, LOW);
+        // digitalWrite(IN1_A, HIGH);
+        // digitalWrite(IN2_A, LOW);
 
-        digitalWrite(IN1_B, LOW);
-        digitalWrite(IN2_B, HIGH);
-       
+        // digitalWrite(IN1_B, LOW);
+        // digitalWrite(IN2_B, HIGH);
+        
+        Tank.setLeftMotorPWM(100);
+    
+        delay(50);
+        Tank.setRightMotorPWM(100);
     }else if (motors == 2){//turn right
-        analogWrite(EN_A, power);
-        analogWrite(EN_B, power);
-        digitalWrite(IN1_B, HIGH);
-        digitalWrite(IN2_B, LOW);
+        // analogWrite(EN_A, power);
+        // analogWrite(EN_B, power);
+        // digitalWrite(IN1_B, HIGH);
+        // digitalWrite(IN2_B, LOW);
 
-        delay(100);
+        // delay(100);
 
 
-        digitalWrite(IN1_A, LOW);
-        digitalWrite(IN2_A, HIGH);
+        // digitalWrite(IN1_A, LOW);
+        // digitalWrite(IN2_A, HIGH);
+        Tank.setRightMotorPWM(-100);
+        delay(50);
+        Tank.setLeftMotorPWM(100);
     }
 
 }
@@ -487,10 +502,8 @@ void positionControl(float targetPos, char axis) {
 }
 
 // Main function to call during navigation
-void navigateToPosition(float targetX, float targetY) {
-    // Update current position and navigate to each axis sequentially
-    positionControl(targetX, 'X');
-    delay(500); // Delay for stabilization
-    positionControl(targetY, 'Y');
-}
-
+// void navigateToPosition(float targetX, float targetY) {
+//     // Update current position and navigate to each axis sequentially
+//     positionControl(targetX, 'X');
+//     delay(500); // Delay for stabilization
+//     position// 
