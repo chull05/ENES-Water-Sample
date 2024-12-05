@@ -1,31 +1,59 @@
 #include <math.h>
 #include "Arduino.h"
 #include "Enes100.h"
-#include "Tank.h"
-
 
 //Assigning Pins Left Motor (A) 
-const int EN_A = 10;//speed
+const int EN_A = 4;//speed
 const int IN1_A = 48; //direction
 const int IN2_A = 49; //direction
 
 //Assigning Pins Right Motor (B)
-const int EN_B = 11;//speed
+const int EN_B = 5;//speed
 const int IN1_B = 47; //direction
 const int IN2_B = 46; //direction
 
 //Assigning Ultrasonic Pins
 // defines pins numbers
-const int trigPinA = 7;
-const int echoPinA = 8;
+const int trigPinA = 6;
+const int echoPinA = 7;
 
-//const int trigPinB = 5;
-//const int echoPinB = 6;
+const int trigPinB = 9;
+const int echoPinB = 8;
+//Arm Pins
+const int EN_C = 3;
+const int IN1_C = 22; 
+const int IN2_C = 23; 
 
 // defines variables
 long duration;
 int distance;
 
+// Pin Definitions
+const int waterSensorPowerPin = 32;   // Digital pin to power the water sensor
+const int waterSensorPin = A5;       // Analog pin connected to the water sensor
+const int pumpControlPin = 28;        // Digital pin controlling the pump
+const int waterThreshold = 500;      // Water sensor threshold value (adjust as needed)
+const unsigned long pumpRunTime = 10000; // Pump run time in milliseconds (10 seconds)
+
+// Variables
+bool pumpRunning = false;             // State of the pump
+unsigned long pumpStartTime = 0;      // Time when the pump was turned on
+
+// Color Sensor pins
+const int S0 = 11;
+const int S1 = 33;
+const int S2 = 13;
+const int S3 = 12;
+const int signal = 34;
+
+// define variables for pulses
+unsigned long red;
+unsigned long blue;
+unsigned long green;
+unsigned long clear;
+
+//variable for found pollutant
+boolean pollutant = false;
 
 void setup() {
     // put your setup code here, to run once:
@@ -37,36 +65,67 @@ void setup() {
     pinMode(IN1_B, OUTPUT);
     pinMode(IN2_B, OUTPUT);
 
-    // pinMode(trigPinA, OUTPUT); // Sets the trigPin as an Output
-    // pinMode(echoPinA, INPUT); // Sets the echoPin as an Input
+    pinMode(trigPinA, OUTPUT); // Sets the trigPin as an Output
+    pinMode(echoPinA, INPUT); // Sets the echoPin as an Input
 
-    // pinMode(trigPinB, OUTPUT); // Sets the trigPin as an Output
-    // pinMode(echoPinB, INPUT); // Sets the echoPin as an Input
-    Tank.begin();
-    Enes100.begin("Project Kowalski", WATER, 249, 52, 50);
-    
+    pinMode(trigPinB, OUTPUT); // Sets the trigPin as an Output
+    pinMode(echoPinB, INPUT); // Sets the echoPin as an Input
+
+    pinMode(waterSensorPowerPin, OUTPUT); // Set sensor power pin as output
+    pinMode(pumpControlPin, OUTPUT);     // Set pump control pin as output
+    digitalWrite(waterSensorPowerPin, LOW); // Start with sensor off
+    digitalWrite(pumpControlPin, LOW);   // Ensure the pump starts off
+
+    Enes100.begin("Project Kowalski", WATER, 249, 51, 50);
+
+    pinMode(EN_C, OUTPUT);
+    pinMode(IN1_C, OUTPUT);
+    pinMode(IN2_C, OUTPUT);
+
+    analogWrite(EN_C, 75);
+
+    // set pin modes
+    pinMode(S0,OUTPUT);
+    pinMode(S1,OUTPUT);
+    pinMode(S2,OUTPUT);
+    pinMode(S3,OUTPUT);
+    pinMode(signal,INPUT);
+
+    /* set frequency scaling - 
+      S0 S1 | Output frequency scaling
+      L  L  | power down
+      L  H  | 2%
+      H  L  | 20%
+      H  H  | 100%
+    */
+    digitalWrite(S0,HIGH);
+    digitalWrite(S1,LOW);
+    Serial.begin(9600);
     Enes100.println("Starting directions towards landing zone");
-    //setDirection(1, 75);
+    //Raises arm
+    digitalWrite(IN1_C, LOW);
+    digitalWrite(IN2_C, HIGH);
+    delay(500);
     //navigateMission();
-    //moveTillX(3.9);
-    //rotateOTV();
-    //turn90Degrees(2);
-    //setDirection(0, 70);
-    moveTillY(0);
-    // //Enes100.println(measureDistance(trigPinA, echoPinA));
-    //delay(1300);
-    stopMotors();
-    
-    
+    //moveToMission();
 }
 
 void loop() {
+    delay(1000);
+    float dist1 = measureDistance(trigPinA, echoPinA);
+    float dist2 = measureDistance(trigPinB, echoPinB);
+    Serial.println(dist1);
+    Serial.println(dist2);
     
-    updateCoords();
+    //updateCoords();
     //moveTillX(3);
     //break;
 }
-
+void moveToMission(){
+  setDirection(0, 100);
+  delay(2500);
+  stopMotors();
+}
 void updateCoords()
 {
 
@@ -89,32 +148,32 @@ void updateCoords()
 
 
 float measureDistance(int trigPin, int echoPin){
-  // digitalWrite(trigPin, LOW);
-  // delay(2);
-  // digitalWrite(trigPin, HIGH);
-  // delay(10);
-  // digitalWrite(trigPin, LOW);
+  digitalWrite(trigPin, LOW);
+  delay(2);
+  digitalWrite(trigPin, HIGH);
+  delay(10);
+  digitalWrite(trigPin, LOW);
 
   // Read the echo pin and calculate distance based on pulse duration
   long duration = pulseIn(echoPin, HIGH);
-  float distance =Tank.readDistanceSensor(1) * 0.034 / 2;  // Convert time to distance (in meters)
+  float distance = duration * 0.034 / 2;  // Convert time to distance (in meters)
   return distance;
 }
 
 void distSense()
 {
   // Measure distances from both sensors
-    float distanceSensor1 = Tank.readDistanceSensor(1);
-    //float distanceSensor2 = measureDistance(trigPinB, echoPinB);
+    float distanceSensor1 = measureDistance(trigPinA, echoPinA);
+    float distanceSensor2 = measureDistance(trigPinB, echoPinB);
 
     // Print distances to Enes100 for monitoring
     Enes100.print("Sensor 1 Distance: ");
     Enes100.println(distanceSensor1);
-    // Enes100.print("Sensor 2 Distance: ");
-    // Enes100.println(distanceSensor2);
+    Enes100.print("Sensor 2 Distance: ");
+    Enes100.println(distanceSensor2);
 
     // Set the logic based on the sensor readings
-    if (distanceSensor1 < 0.3) {  // Trigger avoidance if either sensor detects an obstacle within 0.3m
+    if (distanceSensor1 < 30 || distanceSensor2 < 30) {  // Trigger avoidance if either sensor detects an obstacle within 0.3m
         if (Enes100.getY() < 1) {
             turn90Degrees(1);
             moveTillY(1.45);
@@ -135,14 +194,13 @@ void rotateOTV() {
     const int maxSpeed = 150;
     // Threshold for stopping (.2 radians)
     const float threshold = .2; 
-
+    
     // Continue rotating until theta is within the specified range
     while (fabs(Enes100.getTheta()) > threshold) {
         updateCoords ();
         // Get the current theta
-        //stopMotors();
         float currentTheta = Enes100.getTheta();
-        
+    
         // Calculate the speed based on how close we are to zero
         int speed = maxSpeed;
 
@@ -174,7 +232,7 @@ void rotateToZero() {
     // Initialize PID control variables
     static float integralTheta = 0.0;
     static float previous_errorTheta = 0.0;
-    const float threshold = 0.05; // Smaller threshold for precision in radians
+    const float threshold = 0.3; // Smaller threshold for precision in radians
     const float dt = 0.1;         // Time interval for PID calculation
 
     // Loop until the robot's theta angle is within the defined threshold
@@ -221,11 +279,11 @@ void moveTillX(float xCord){
         delay(100);
         stopMotors();
         
-        float distanceSensor1 = Tank.readDistanceSensor(1);
-        //float distanceSensor2 = measureDistance(trigPinB, echoPinB);
-        
+        float distanceSensor1 = measureDistance(trigPinA, echoPinA);
+        float distanceSensor2 = measureDistance(trigPinB, echoPinB);
+
         int count = 0;
-        if(distanceSensor1 > 0.3){
+        if(distanceSensor1 < 0.3 || distanceSensor2 < 0.3){
             distSense();
             ++count;
             if(count <= 2){
@@ -236,11 +294,7 @@ void moveTillX(float xCord){
 
 
     }
-    if(Enes100.getY() < 1.1){
-      turn90Degrees(1);
-      moveTillY(1.45);
-      turn90Degrees(2);
-    }
+
 }
 
 void moveCenter(){
@@ -300,16 +354,15 @@ void moveObstacle(int time, int direction){
 
 void stopMotors(){
     //setLeftMotorPWM
-    Tank.turnOffMotors();
-    // analogWrite(EN_A, 0);
-    // analogWrite(EN_B, 0);
+    analogWrite(EN_A, 0);
+    analogWrite(EN_B, 0);
 
-    // digitalWrite(IN1_A, LOW);
-    // digitalWrite(IN2_A, LOW);
+    digitalWrite(IN1_A, LOW);
+    digitalWrite(IN2_A, LOW);
 
-    // digitalWrite(IN1_B, LOW);
-    // digitalWrite(IN2_B, LOW);
-    // //setRightMotorPWM
+    digitalWrite(IN1_B, LOW);
+    digitalWrite(IN2_B, LOW);
+    //setRightMotorPWM
 }
 // Constants
 const float MAX_TURN_SPEED = 255; // Maximum turn speed for motors
@@ -338,85 +391,63 @@ float normalizeTheta(float theta) {
     return theta;
 }
 
+
 void turn90Degrees(int direction){
     //should pass in 1 (left) or 2 (right)
-    float target;
-    float currentTheta = Enes100.getTheta();
-    
-    if(direction == 1){
-        //determines 90 degree target theta left turn
-       target = normalizeTheta(currentTheta + (PI/2));
-    }else if (direction == 2){
-        //detemines 90 degree target theta right turn
-      target = normalizeTheta(currentTheta - (PI/2));
-    } else {
-        //Invalid direction, exit the function
-        return;
-    }
-    
-    Enes100.println( target);
-    
-    while (fabs(normalizeTheta(Enes100.getTheta()) - target) > .5) {
-        updateCoords ();
-        currentTheta = Enes100.getTheta();
-    
-        // Calculate the speed based on how close we are to zero
-        int maxSpeed = 160;
-        int speed = maxSpeed;
 
-        // Adjust the speed based on the angle's proximity to zero
-        if (fabs (normalizeTheta(currentTheta-target)) <  0.5) {
-            //map(int x, int in_min, int in_max, int out_min, int out_max)
-            
-            speed = map(fabs(currentTheta - target), 0, .5, 20, maxSpeed); 
-            // Slow down as it approaches threshold
-        }
-
-        // Control the motor direction and speed
-        if (normalizeTheta(currentTheta - target) < 0) {
-            // clockwise if theta is negative
-            setDirection(2, speed);
-        } else {
-            // counterclockwise if theta is positive
-            setDirection (1, speed);
-        }
-
-        delay(1000);
-       
-        
-    }
-     stopMotors();
+    setDirection(direction, 120);
+    delay(2900);
+    stopMotors();
  
 }
 
 void navigateMission(){
     float currentY = Enes100.getY();
-    
+    //sets OTV to face theta = 0
+    rotateOTV();
     if(currentY < 1){ //lower starting position
-        // rotateOTV(); 
-        // turn90Degrees(1);
-        // moveTillY (1.5);
-        // delay (1000);
-        // turn90Degrees(2);
+        turn90Degrees(1);
+        moveToMission();
+        //complete mission
+        digitalWrite(IN1_C, HIGH);
+        digitalWrite(IN2_C, LOW);
+        delay(500);
+        colorSensorRun();
+        pumpWater();
+        delay (2000);
+        turn90Degrees(2);
         moveTillX(3.5);
     }else{ //upper starting position
-        //rotateOTV();
-        //turn90Degrees(2);
-        //moveTillY(.55);
-        //delay(1000);
-        //turn90Degrees(1);
+        turn90Degrees(2);
+        moveToMission();
+        //complete mission
+        digitalWrite(IN1_C, HIGH);
+        digitalWrite(IN2_C, LOW);
+        delay(500);
+
+        colorSensorRun();
+        pumpWater();
+        delay(2000);
+        turn90Degrees(1);
         moveTillX(3.5);
     }
-    // Initial positioning with PID control
-    //navigateToPosition(3.0, 1.5);
-    
-    // Fine adjustments using direct movement
-    moveTillX(3.0);  // Move to specific X coordinate
-    moveTillY(1.5);  // Then move to specific Y coordinate
+    stopMotors();
+    //adjustment to reach limbo
+    if(Enes100.getY() < 1.1){
+      turn90Degrees(1);
+      moveTillY(1.45);
+      turn90Degrees(2);
+    }
+
+    setDirection(0, 50);
+    delay(1000);
+    stopMotors();
+    Enes100.println("Mission Complete");
+
 }
 
 
-
+//Motor calls
 void setDirection(int motors, int power) {
     if(power > 150){
         power = 150;
@@ -425,85 +456,136 @@ void setDirection(int motors, int power) {
     }
     
     if (motors == 0){//straight
-        // analogWrite(EN_A, 75);
-        // analogWrite(EN_B, 75);
+        analogWrite(EN_A, 75);
+        analogWrite(EN_B, 75);
 
-        // digitalWrite(IN1_A, LOW);
-        // digitalWrite(IN2_A, HIGH);
+        digitalWrite(IN1_A, LOW);
+        digitalWrite(IN2_A, HIGH);
 
-        // digitalWrite(IN1_B, LOW);
-        // digitalWrite(IN2_B, HIGH);
-        Tank.setLeftMotorPWM(200);
-        Tank.setRightMotorPWM(200);
+        digitalWrite(IN1_B, LOW);
+        digitalWrite(IN2_B, HIGH);
+
     }else if (motors == 1){//turn left
-        // analogWrite(EN_A, power);
-        // analogWrite(EN_B, power);
+        analogWrite(EN_A, power);
+        analogWrite(EN_B, power + 30);
 
-        // digitalWrite(IN1_A, HIGH);
-        // digitalWrite(IN2_A, LOW);
+        digitalWrite(IN1_A, LOW);
+        digitalWrite(IN2_A, HIGH);
+         
+        delay (10);
 
-        // digitalWrite(IN1_B, LOW);
-        // digitalWrite(IN2_B, HIGH);
-        
-        Tank.setLeftMotorPWM(100);
-    
-        delay(50);
-        Tank.setRightMotorPWM(100);
+        digitalWrite(IN1_B, HIGH);
+        digitalWrite(IN2_B, LOW);
+       
     }else if (motors == 2){//turn right
-        // analogWrite(EN_A, power);
-        // analogWrite(EN_B, power);
-        // digitalWrite(IN1_B, HIGH);
-        // digitalWrite(IN2_B, LOW);
+        analogWrite(EN_A, power + 30);
+        analogWrite(EN_B, power);
 
-        // delay(100);
+        digitalWrite(IN1_B, HIGH);
+        digitalWrite(IN2_B, LOW);
+        
+        delay (10);
 
+        digitalWrite(IN1_A, LOW);
+        digitalWrite(IN2_A, HIGH);
 
-        // digitalWrite(IN1_A, LOW);
-        // digitalWrite(IN2_A, HIGH);
-        Tank.setRightMotorPWM(-100);
-        delay(50);
-        Tank.setLeftMotorPWM(100);
+        
     }
 
 }
 
-// PID control constants
-const float kP = 1.0;   // Proportional gain
-const float kI = 0.5;   // Integral gain for accuracy
-const float kD = 0.3;   // Derivative gain for stability
+//Color sensor code
+boolean colorSensorRun(){
+  // clear
+  digitalWrite(S2,HIGH);
+  digitalWrite(S3,LOW);
+  clear = pulseIn(signal,HIGH);
+  
+  // red
+  digitalWrite(S2,LOW);
+  digitalWrite(S3,LOW);
+  red = pulseIn(signal,HIGH);
 
-// Function to control position based on PID for X or Y axis
-void positionControl(float targetPos, char axis) {
-    // Initialize control variables
-    static float integral = 0.0;
-    static float previous_error = 0.0;
-    const float dt = 0.1; // Time interval
+  // green
+  digitalWrite(S2,HIGH);
+  digitalWrite(S3,HIGH);
+  green = pulseIn(signal,HIGH);
 
-    // Get current position based on specified axis
-    float currentPos = (axis == 'X') ? Enes100.getX() : Enes100.getY();
-    float error = targetPos - currentPos;
+  // blue
+  digitalWrite(S2,LOW);
+  digitalWrite(S3,HIGH);
+  blue = pulseIn(signal,HIGH);
 
-    // Calculate integral and derivative terms
-    integral += error * dt;
-    float derivative = (error - previous_error) / dt;
-    previous_error = error;
+  /* map the red, green, and blue values to a more intuitive 0-255 range where
+     0 means less light and 255 means more. This part will require calibration
+     depending on your colored surfaces and ambient light levels.
+  */
+  red = map(red, 75, 40, 0, 255);
+  green = map(green, 85, 55, 0, 255);
+  blue = map(blue, 90, 60, 0, 255);  // Blue channel has a different range
+  // Serial.println(red);
+  // Serial.println(green);
+  // Serial.println(blue);
+  // turn LEDs on depending on which color is detected
+  int runs = 0;
 
-    // Control output
-    float controlOutput = kP * error + kI * integral + kD * derivative;
+  while (runs <= 10 && pollutant == false){
+      if((red>200 && green<100 && blue<100 )|| (red<100 && green>150 && blue<150) || (red<100 && green<100 && blue>80)){  // red detected
+        pollutant = true;
+        Serial.print("Pollutant was found");
+        Serial.print(" ");
+      
+      // delay();
+      }
     
-    // Convert control output to motor speeds
-    int speed = constrainAng(controlOutput, -255, 255);
-    setDirection(0, speed); // Move forward or backward to reach the target position
+      else{  // none of the three colors above detected
+        pollutant = false;
+        Serial.println("NO POLUTANT");
+          
+        delay(100);
+      }
+  }
+  if(pollutant == true){
+    Enes100.println("Pollutant was Found");
+  }else{
+    Enes100.println("NO POLUTANT");
+  }
 
-    // Stop motors if target is reached within a threshold
-    if (fabs(error) < 0.3) {
-        stopMotors();
-    }
 }
 
-// Main function to call during navigation
-// void navigateToPosition(float targetX, float targetY) {
-//     // Update current position and navigate to each axis sequentially
-//     positionControl(targetX, 'X');
-//     delay(500); // Delay for stabilization
-//     position// 
+//water pump code
+void pumpWater (){
+  // Power the sensor
+  digitalWrite(waterSensorPowerPin, HIGH);  // Turn the sensor ON
+  delay(10);                                // Wait 10 milliseconds for stabilization
+
+  // Read water level
+  int waterLevel = analogRead(waterSensorPin);
+
+  // Debugging output
+  Serial.print("Water level: ");
+  Serial.println(waterLevel);
+  Enes100.print("Water Level: ");
+  Enes100.println(waterLevel);
+
+  // Check if water is detected
+  if (!pumpRunning && waterLevel > waterThreshold) {
+    Serial.println("Water detected! Turning pump on.");
+    digitalWrite(pumpControlPin, HIGH);     // Turn on the pump
+    pumpStartTime = millis();               // Record the time the pump started
+    pumpRunning = true;                     // Set pump state to running
+  }
+
+  // Check if pump should be turned off
+  if (pumpRunning && (millis() - pumpStartTime >= pumpRunTime)) {
+    Serial.println("Turning pump off.");
+    digitalWrite(pumpControlPin, LOW);      // Turn off the pump
+    pumpRunning = false;                    // Set pump state to off
+  }
+
+  // Turn the sensor off to save power
+  digitalWrite(waterSensorPowerPin, LOW);
+
+  delay(100); // Short delay for stability
+}
+
